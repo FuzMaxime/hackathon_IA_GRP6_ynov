@@ -1,0 +1,44 @@
+services:
+  db:
+    build: ./BDD
+    container_name: techcorp-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-techcorp_chat}
+      MYSQL_USER: ${MYSQL_USER:-techcorp}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-techcorp}
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p\"$$MYSQL_ROOT_PASSWORD\" || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  web-app:
+    build: ./web-app
+    container_name: techcorp-web
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    environment:
+      MYSQL_HOST: db
+      MYSQL_PORT: 3306
+      MYSQL_USER: ${MYSQL_USER:-techcorp}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-techcorp}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-techcorp_chat}
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-phi35-financial}
+    depends_on:
+      db:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  mysql_data:
