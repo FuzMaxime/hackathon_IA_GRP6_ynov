@@ -11,4 +11,6 @@ body {
 
 body {
   font-family: var(--font-sans), system-ui, sans-serif;
+  background: #ffffff;
+  color: #18181b;
 }

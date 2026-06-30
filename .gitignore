@@ -1,2 +1,4 @@
 datasets/dataset_v0.json
 .DS_Store
+.env
+web-app/.env.local
