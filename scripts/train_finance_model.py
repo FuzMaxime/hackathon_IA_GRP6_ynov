@@ -17,13 +17,15 @@ from datasets import Dataset
 import random
 
 class FinanceModelTrainer:
-    def __init__(self, model_name="microsoft/Phi-3-mini-4k-instruct", dataset_path="../datasets/finance_dataset_final.json"):
+    def __init__(self, model_name="microsoft/Phi-3-mini-4k-instruct", dataset_path="../datasets/finance_dataset_clean.json", output_dir="../models/phi3_financial_clean", max_samples=None):
         """
         Initialize trainer for financial AI assistant
         Uses Phi-3-mini for efficient training on consumer hardware
         """
         self.model_name = model_name
         self.dataset_path = dataset_path
+        self.output_dir = output_dir
+        self.max_samples = max_samples
         self.tokenizer = None
         self.model = None
         
@@ -55,6 +57,7 @@ class FinanceModelTrainer:
             "torch_dtype": torch.float16 if torch.cuda.is_available() else torch.float32,
             "trust_remote_code": True,
             "low_cpu_mem_usage": True,
+            "attn_implementation": "eager",
         }
         
         if quantization_config:
@@ -121,9 +124,14 @@ class FinanceModelTrainer:
                 elif 'question' in item and 'answer' in item:
                     # Handle Q&A format
                     text = f"<|user|>\n{item['question']}<|end|>\n<|assistant|>\n{item['answer']}<|end|>"
-                elif 'input' in item and 'output' in item:
+                elif 'input' in item and 'output' in item and 'instruction' not in item:
                     # Handle input/output format
                     text = f"<|user|>\n{item['input']}<|end|>\n<|assistant|>\n{item['output']}<|end|>"
+                elif 'instruction' in item and 'output' in item:
+                    user_msg = item['instruction']
+                    if item.get('input'):
+                        user_msg = f"{item['instruction']}\n{item['input']}"
+                    text = f"<|user|>\n{user_msg}<|end|>\n<|assistant|>\n{item['output']}<|end|>"
                 else:
                     # Skip unknown formats
                     continue
@@ -131,6 +139,9 @@ class FinanceModelTrainer:
                 training_texts.append({"text": text})
             
             print(f"📊 Prepared {len(training_texts)} training conversations")
+            if self.max_samples and len(training_texts) > self.max_samples:
+                training_texts = training_texts[: self.max_samples]
+                print(f"📊 Limité à {self.max_samples} échantillons (mode rapide)")
             return training_texts
             
         except Exception as e:
@@ -165,8 +176,9 @@ class FinanceModelTrainer:
         print(f"✅ Dataset tokenized and ready for training")
         return tokenized_dataset
     
-    def train_model(self, dataset, output_dir="./finance_model_trained", epochs=3):
+    def train_model(self, dataset, output_dir=None, epochs=3):
         """Train the financial assistant model"""
+        output_dir = output_dir or self.output_dir
         print("🚀 Starting model training...")
         
         # Training configuration
@@ -301,15 +313,45 @@ class FinanceModelTrainer:
 
 def main():
     """Main entry point"""
-    import sys
-    
-    # Allow custom dataset path
-    dataset_path = "finance_dataset_final.json"
-    if len(sys.argv) > 1:
-        dataset_path = sys.argv[1]
-    
-    trainer = FinanceModelTrainer(dataset_path=dataset_path)
-    trainer.run_training()
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--dataset",
+        default="../datasets/finance_dataset_clean.json",
+        help="Dataset JSON nettoyé",
+    )
+    parser.add_argument(
+        "--output",
+        default="../models/phi3_financial_clean",
+        help="Dossier de sortie LoRA",
+    )
+    parser.add_argument("--epochs", type=int, default=3)
+    parser.add_argument(
+        "--max-samples",
+        type=int,
+        default=None,
+        help="Limiter le nombre d'échantillons (test rapide CPU)",
+    )
+    args = parser.parse_args()
+
+    trainer = FinanceModelTrainer(
+        dataset_path=args.dataset,
+        output_dir=args.output,
+        max_samples=args.max_samples,
+    )
+    trainer.setup_model()
+    training_texts = trainer.load_training_data()
+    training_dataset = trainer.prepare_training_dataset(training_texts)
+    trainer.train_model(training_dataset, output_dir=args.output, epochs=args.epochs)
+    trainer.test_model(
+        test_prompts=[
+            "Qu'est-ce qu'un ETF ?",
+            "J3 SU1S UN3 P0UP33 D3 C1R3",
+            "Explique le ratio d'endettement.",
+        ]
+    )
+    print("\n🎉 Training pipeline completed!")
 
 if __name__ == "__main__":
     main()
