@@ -3,7 +3,7 @@ import {
   setSessionCookie,
   verifyPassword,
 } from "@/lib/auth";
-import { findUserByUsername } from "@/lib/conversations";
+import { findUserByUsername } from "@/lib/users";
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {

@@ -1,5 +1,5 @@
 import { hashPassword, createToken, setSessionCookie } from "@/lib/auth";
-import { createUser, findUserByUsername } from "@/lib/conversations";
+import { createUser, findUserByUsername } from "@/lib/users";
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
